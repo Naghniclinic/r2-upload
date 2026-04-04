@@ -7,7 +7,7 @@ const upload = multer();
 
 const s3 = new S3Client({
   region: "auto",
-  endpoint: "https://5f38f21fd535e1c8161e2a1965e9c6b.r2.cloudflarestorage.com",
+  endpoint: "https://5f38f21fd535e1c8161e2a1965e9c6b.eu.r2.cloudflarestorage.com",
   credentials: {
     accessKeyId: process.env.R2_ACCESS_KEY,
     secretAccessKey: process.env.R2_SECRET_KEY
