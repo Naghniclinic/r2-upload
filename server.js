@@ -15,13 +15,23 @@ const s3 = new S3Client({
 });
 
 app.get("/", (req, res) => {
-  res.send("R2 upload API is running");
+  res.send(`
+    <html>
+      <body style="font-family: Arial; padding: 40px;">
+        <h2>R2 Upload Test</h2>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+          <input type="file" name="file" />
+          <button type="submit">Upload</button>
+        </form>
+      </body>
+    </html>
+  `);
 });
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+      return res.status(400).send("No file uploaded");
     }
 
     await s3.send(
@@ -33,13 +43,10 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       })
     );
 
-    return res.json({
-      success: true,
-      filename: req.file.originalname
-    });
+    return res.send(`Upload feito com sucesso: ${req.file.originalname}`);
   } catch (err) {
     console.error("Upload error:", err);
-    return res.status(500).json({ error: "Upload failed" });
+    return res.status(500).send("Upload failed");
   }
 });
 
