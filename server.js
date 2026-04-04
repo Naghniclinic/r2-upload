@@ -1,4 +1,3 @@
-server.js
 import express from "express";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -15,24 +14,36 @@ const s3 = new S3Client({
   },
 });
 
+app.get("/", (req, res) => {
+  res.send("R2 upload API is running");
+});
+
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const file = req.file;
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
     await s3.send(
       new PutObjectCommand({
         Bucket: "naghini-storage",
-        Key: file.originalname,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Key: req.file.originalname,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
       })
     );
 
-    res.json({ success: true });
+    return res.json({ success: true, filename: req.file.originalname });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Upload failed" });
+    console.error("Upload error:", err);
+    return res.status(500).json({ error: "Upload failed" });
   }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});
 });
 
 app.listen(3000, () => console.log("Running"));
