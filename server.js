@@ -7,7 +7,7 @@ const upload = multer();
 
 const s3 = new S3Client({
   region: "auto",
-  endpoint: "https://5f38f21fd535e1c8161e2a1965e99cb6.r2.cloudflarestorage.com",
+  endpoint: "https://5f38f21fd535e1c8161e2a1965e9c6b.r2.cloudflarestorage.com",
   credentials: {
     accessKeyId: process.env.R2_ACCESS_KEY,
     secretAccessKey: process.env.R2_SECRET_KEY
@@ -34,20 +34,23 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).send("No file uploaded");
     }
 
+    const key = `${Date.now()}-${req.file.originalname}`;
+
     await s3.send(
       new PutObjectCommand({
         Bucket: "naghini-storage",
-        Key: req.file.originalname,
+        Key: key,
         Body: req.file.buffer,
         ContentType: req.file.mimetype
       })
     );
 
-    return res.send(`Upload feito com sucesso: ${req.file.originalname}`);
+    const url = `https://pub-f58f4b291dc445b590ff93e74cfca7e1.r2.dev/${key}`;
+    return res.json({ success: true, key, url });
   } catch (err) {
-  console.error("Upload error:", err);
-  return res.status(500).send(`Upload failed: ${err.message}`);
-}
+    console.error("Upload error:", err);
+    return res.status(500).send(`Upload failed: ${err.message}`);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
