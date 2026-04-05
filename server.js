@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import {
   S3Client,
   PutObjectCommand,
@@ -9,7 +10,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 const app = express();
-const upload = multer();
+const upload = multer({ storage: multer.memoryStorage() });
 
 const allowedOrigins = [
   "https://id-preview--4f008034-6312-4ab3-bab8-b03bb60c75a2.lovable.app",
@@ -18,12 +19,28 @@ const allowedOrigins = [
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error("Not allowed by CORS"));
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+const requiredEnvVars = [
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET_NAME",
+  "SUPABASE_JWT_SECRET"
+];
+
+for (const envName of requiredEnvVars) {
+  if (!process.env[envName]) {
+    console.error(`Missing environment variable: ${envName}`);
+  }
+}
 
 const s3 = new S3Client({
   region: "auto",
@@ -36,6 +53,7 @@ const s3 = new S3Client({
 
 function requireAuth(req, res, next) {
   const auth = req.headers.authorization || "";
+
   if (!auth.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized" });
   }
@@ -45,11 +63,15 @@ function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
     req.user = payload;
-    next();
-  } catch {
+    return next();
+  } catch (err) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 }
+
+app.get("/", (_req, res) => {
+  res.status(200).send("API running");
+});
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
@@ -57,7 +79,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const key = `${crypto.randomUUID()}-${req.file.originalname}`;
+    const safeName = req.file.originalname.replace(/[^\w.\-]/g, "_");
+    const key = `${crypto.randomUUID()}-${safeName}`;
 
     await s3.send(new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
@@ -66,13 +89,15 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       ContentType: req.file.mimetype
     }));
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       key
     });
   } catch (err) {
     console.error("Upload error:", err);
-    return res.status(500).json({ error: "Upload failed" });
+    return res.status(500).json({
+      error: "Upload failed"
+    });
   }
 });
 
@@ -106,14 +131,8 @@ app.get("/file/:key", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/", (_req, res) => {
-  res.send("API running");
-});
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
