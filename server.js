@@ -45,9 +45,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
     return res.send(`Upload feito com sucesso: ${req.file.originalname}`);
   } catch (err) {
-    console.error("Upload error:", err);
-    return res.status(500).send("Upload failed");
-  }
+  console.error("Upload error:", err);
+  return res.status(500).send(`Upload failed: ${err.message}`);
+}
 });
 
 const PORT = process.env.PORT || 3000;
