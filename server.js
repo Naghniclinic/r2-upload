@@ -11,21 +11,30 @@ import {
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+const envOrigins = (process.env.FRONTEND_PROD_ORIGIN || "")
+  .split(",")
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   "https://id-preview--4f008034-6312-4ab3-bab8-b03bb60c75a2.lovable.app",
-  process.env.FRONTEND_PROD_ORIGIN
-].filter(Boolean);
+  ...envOrigins
+];
 
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+
+    console.log("Blocked by CORS:", origin);
     return callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+app.options("*", cors());
 
 const s3 = new S3Client({
   region: "auto",
@@ -42,6 +51,22 @@ app.get("/", (_req, res) => {
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
+    if (!process.env.R2_BUCKET_NAME) {
+      throw new Error("Missing R2_BUCKET_NAME");
+    }
+
+    if (!process.env.R2_ACCOUNT_ID) {
+      throw new Error("Missing R2_ACCOUNT_ID");
+    }
+
+    if (!process.env.R2_ACCESS_KEY_ID) {
+      throw new Error("Missing R2_ACCESS_KEY_ID");
+    }
+
+    if (!process.env.R2_SECRET_ACCESS_KEY) {
+      throw new Error("Missing R2_SECRET_ACCESS_KEY");
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
@@ -66,7 +91,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   } catch (err) {
     console.error("Upload error:", err);
     return res.status(500).json({
-      error: "Upload failed"
+      error: err instanceof Error ? err.message : "Upload failed"
     });
   }
 });
@@ -105,4 +130,5 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
+  console.log("Allowed origins:", allowedOrigins);
 });
